@@ -123,6 +123,7 @@ st.sidebar.title("🏀 ScoutIQ")
 page = st.sidebar.radio(
     "Navigation",
     [
+        "🏠 Home",
         "🔍 Player Explorer",
         "📊 Team Dashboard",
         "🔄 Trade Analyzer",
@@ -135,7 +136,56 @@ page = st.sidebar.radio(
 # ===========================================================================
 # PLAYER EXPLORER
 # ===========================================================================
-if page == "🔍 Player Explorer":
+if page == "🏠 Home":
+    st.title("ScoutIQ 🏀")
+    st.subheader("NBA Player & Team Analytics Platform")
+    st.caption("Scout players, rate teams, simulate trades, and find roster fits, all from real NBA data.")
+    st.divider()
+
+    st.markdown("### Where to start")
+    st.write("Use the sidebar on the left to move between tools. Here's what each one does:")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### 🔍 Player Explorer")
+        st.write(
+            "Look up any player for a scouting card, ScoutIQ radar profile, and "
+            "auto-generated report. Then find statistically similar replacements "
+            "filtered by salary and age."
+        )
+        st.markdown("#### 📊 Team Dashboard")
+        st.write(
+            "See a team's league-wide ratings with radar, colored bars, and rank "
+            "(e.g. #3 of 30 in Defense), plus roster, average age, and salary."
+        )
+        st.markdown("#### 🔄 Trade Analyzer")
+        st.write(
+            "Build a multi-player deal (draft picks optional) and see how it reshapes "
+            "your team, with category deltas and an Overall Fit score."
+        )
+    with c2:
+        st.markdown("#### 🧳 Free Agent Finder")
+        st.write(
+            "Pick a team need, a budget, and an age cap to get the best available "
+            "players ranked by that skill."
+        )
+        st.markdown("#### 🤖 GM Assistant")
+        st.write(
+            "Ask a plain-language question like *How can the Timberwolves improve "
+            "their rebounding?* and get an answer with real target players. No setup needed."
+        )
+
+    st.divider()
+    st.markdown("### How the ratings work")
+    st.write(
+        "Player ratings are percentiles within the NBA rotation pool, so a 5 is an "
+        "average rotation player. Team ratings use pace- and opponent-adjusted "
+        "advanced stats ranked against the rest of the league, so scoring reflects "
+        "efficiency and defense reflects points allowed, not raw box-score totals."
+    )
+    st.info("New here? Start with **Player Explorer** or **Team Dashboard** in the sidebar.")
+
+elif page == "🔍 Player Explorer":
     st.title("ScoutIQ 🏀")
     st.subheader("NBA Player Replacement & Scouting Tool")
     st.caption(
