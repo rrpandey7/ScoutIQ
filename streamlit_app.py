@@ -22,6 +22,7 @@ from src.team_analyzer import (
 from src.visualizations import (
     player_radar_chart,
     player_comparison_chart,
+    compare_teams,
 )
 from src.trade_analyzer import (
     simulate_trade,
@@ -65,6 +66,57 @@ def _position_of(name):
     return str(val)
 
 
+# --- Official NBA CDN assets, keyed by the IDs already in the data ----------
+def _lookup_map(key_col, val_col):
+    if key_col not in _player_df.columns or val_col not in _player_df.columns:
+        return {}
+    d = _player_df.dropna(subset=[key_col, val_col])
+    return dict(zip(d[key_col], d[val_col]))
+
+
+_PLAYER_ID = _lookup_map("PLAYER_NAME", "PLAYER_ID")
+
+
+def _team_id_map():
+    if "TEAM_ABBREVIATION" not in _player_df.columns or "TEAM_ID" not in _player_df.columns:
+        return {}
+    out = {}
+    d = _player_df.dropna(subset=["TEAM_ID"])
+    for abbr, grp in d.groupby("TEAM_ABBREVIATION"):
+        out[abbr] = int(grp["TEAM_ID"].mode().iloc[0])
+    return out
+
+
+_TEAM_ID = _team_id_map()
+
+
+def team_logo_html(team, width=110):
+    tid = _TEAM_ID.get(team)
+    if not tid:
+        return None
+    url = f"https://cdn.nba.com/logos/nba/{tid}/global/L/logo.svg"
+    return f"<img src='{url}' width='{width}' alt='{team} logo'>"
+
+
+def player_headshot_url(name):
+    pid = _PLAYER_ID.get(name)
+    if pid is None:
+        return None
+    try:
+        pid = int(pid)
+    except (ValueError, TypeError):
+        return None
+    return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+
+
+def rating_tier(value):
+    if value >= 7:
+        return "🟢", "Elite", "#22c55e"
+    if value >= 4.5:
+        return "🟡", "Average", "#f59e0b"
+    return "🔴", "Weak", "#ef4444"
+
+
 # ---------------------------------------------------------------------------
 # Shared visual helpers
 # ---------------------------------------------------------------------------
@@ -80,15 +132,16 @@ def rating_color(value):
 def rating_bar(label, value, rank=None):
     pct = max(0, min(100, value * 10))
     color = rating_color(value)
+    dot, tier, _ = rating_tier(value)
     rank_txt = ""
     if rank is not None:
-        rank_txt = f"<span style='color:#6b7280'>#{rank[0]} of {rank[1]}</span>"
+        rank_txt = f"<span style='color:#6b7280'>&nbsp;#{rank[0]} of {rank[1]}</span>"
     st.markdown(
         f"""
         <div style="margin:6px 0">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
             <span><b>{label}</b></span>
-            <span>{value}/10&nbsp;&nbsp;{rank_txt}</span>
+            <span>{dot} {value} {tier}{rank_txt}</span>
           </div>
           <div style="background:#e5e7eb;border-radius:6px;height:10px;width:100%">
             <div style="width:{pct}%;background:{color};height:10px;border-radius:6px"></div>
@@ -129,6 +182,7 @@ page = st.sidebar.radio(
         "🔄 Trade Analyzer",
         "🧳 Free Agent Finder",
         "🤖 GM Assistant",
+        "🏆 Standings",
     ],
 )
 
@@ -137,8 +191,25 @@ page = st.sidebar.radio(
 # PLAYER EXPLORER
 # ===========================================================================
 if page == "🏠 Home":
-    st.title("ScoutIQ 🏀")
-    st.subheader("NBA Player & Team Analytics Platform")
+    st.markdown(
+        """
+        <div style="
+            position:relative;border-radius:16px;padding:48px 32px;margin-bottom:8px;
+            text-align:center;overflow:hidden;
+            background:
+              radial-gradient(circle at center, rgba(255,255,255,0.12) 0 2px, transparent 2px) center/100% 100% no-repeat,
+              repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 80px),
+              linear-gradient(135deg,#b45309 0%,#c2410c 45%,#9a3412 100%);
+            border:2px solid rgba(255,255,255,0.15);
+            box-shadow:inset 0 0 0 6px rgba(255,255,255,0.10), inset 0 0 60px rgba(0,0,0,0.35);
+        ">
+          <div style="font-size:54px;line-height:1">🏀</div>
+          <div style="font-size:42px;font-weight:800;color:#fff;letter-spacing:1px">ScoutIQ</div>
+          <div style="font-size:18px;color:#ffedd5;margin-top:4px">NBA Basketball Operations Platform</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption("Scout players, rate teams, simulate trades, and find roster fits, all from real NBA data.")
     st.divider()
 
@@ -204,6 +275,9 @@ elif page == "🔍 Player Explorer":
     # ---- Right: player identity card ----
     with right:
         st.subheader(f"👤 {player_name}")
+        headshot = player_headshot_url(player_name)
+        if headshot:
+            st.image(headshot, width=180)
         if player_info:
             st.metric("Team", player_info["team"])
             st.metric("Age", int(player_info["age"]))
@@ -295,6 +369,10 @@ elif page == "📊 Team Dashboard":
     st.title("📊 Team Dashboard")
     team = st.selectbox("Select Team", get_team_names())
 
+    logo = team_logo_html(team, width=90)
+    if logo:
+        st.markdown(logo, unsafe_allow_html=True)
+
     ratings = get_team_ratings(team)
     ranks = get_team_rank(team)
     roster = get_team_players(team)
@@ -322,13 +400,26 @@ elif page == "📊 Team Dashboard":
         left, right = st.columns([1, 1])
 
         with left:
-            st.subheader("Team Ratings")
+            st.subheader("📊 Team Ratings")
             for c in CATEGORIES:
                 rating_bar(c, ratings[c], ranks[c] if ranks else None)
 
         with right:
-            st.subheader("Profile")
+            st.subheader("🎯 Profile")
             st.plotly_chart(radar_chart([ratings], [team]), use_container_width=True)
+
+        # Head-to-head comparison radar
+        st.divider()
+        st.subheader("⚔️ Compare Teams")
+        others = [t for t in get_team_names() if t != team]
+        compare_with = st.selectbox("Compare with", ["(none)"] + others)
+        if compare_with != "(none)":
+            ratings2 = get_team_ratings(compare_with)
+            if ratings2:
+                st.plotly_chart(
+                    compare_teams(team, ratings, compare_with, ratings2),
+                    use_container_width=True,
+                )
 
         st.divider()
         s1, s2 = st.columns(2)
@@ -499,3 +590,44 @@ elif page == "🤖 GM Assistant":
     st.caption("Try: *What are the Timberwolves' weaknesses?* · *How do I fix Utah's defense?*")
     if st.button("Ask") and question:
         st.markdown(ask_gm(question))
+
+
+# ===========================================================================
+# STANDINGS  (teams grouped by conference, ranked by overall ScoutIQ rating)
+# ===========================================================================
+EAST = {"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND",
+        "MIA", "MIL", "NYK", "ORL", "PHI", "TOR", "WAS"}
+WEST = {"DAL", "DEN", "GSW", "HOU", "LAC", "LAL", "MEM", "MIN",
+        "NOP", "OKC", "PHX", "POR", "SAC", "SAS", "UTA"}
+
+if page == "🏆 Standings":
+    st.title("🏆 Conference Standings")
+    st.caption("Teams ranked by overall ScoutIQ rating (average of the five categories).")
+
+    def _overall(t):
+        r = get_team_ratings(t)
+        return round(sum(r.values()) / len(r), 1) if r else 0.0
+
+    def _conf_table(abbrs):
+        rated = sorted(
+            [(t, _overall(t)) for t in get_team_names() if t in abbrs],
+            key=lambda x: x[1], reverse=True,
+        )
+        for i, (t, ov) in enumerate(rated, start=1):
+            dot, tier, color = rating_tier(ov)
+            logo = team_logo_html(t, width=26) or ""
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px;padding:4px 0'>"
+                f"<span style='width:22px;color:#6b7280'>{i}</span>{logo}"
+                f"<span style='flex:1'><b>{t}</b></span>"
+                f"<span style='color:{color}'>{dot} {ov}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+    east_col, west_col = st.columns(2)
+    with east_col:
+        st.subheader("Eastern Conference")
+        _conf_table(EAST)
+    with west_col:
+        st.subheader("Western Conference")
+        _conf_table(WEST)
