@@ -1,38 +1,72 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-from src.player_finder import (
-    find_replacements,
-    get_player_names,
-    get_player_info,
-    get_player_stats,
-    generate_scouting_report,
-    explain_recommendation,
-)
-from src.team_analyzer import (
-    get_team_names,
-    get_team_players,
-    get_team_ratings,
-    get_team_strengths,
-    get_team_needs,
-    get_team_rank,
-    get_player_ratings,
-    CATEGORIES,
-)
-from src.visualizations import (
-    player_radar_chart,
-    player_comparison_chart,
-    compare_teams,
-)
-from src.trade_analyzer import (
-    simulate_trade,
-    list_team_players,
-    get_all_players,
-    team_profile,
-)
-from src.free_agent_finder import find_free_agents, SALARY_AVAILABLE
-from src.gm_assistant import ask_gm
-from src.team_analyzer import df as _player_df
+try:
+    from src.player_finder import (
+        find_replacements,
+        get_player_names,
+        get_player_info,
+        get_player_stats,
+        generate_scouting_report,
+        explain_recommendation,
+    )
+    from src.team_analyzer import (
+        get_team_names,
+        get_team_players,
+        get_team_ratings,
+        get_team_strengths,
+        get_team_needs,
+        get_team_rank,
+        get_player_ratings,
+        CATEGORIES,
+    )
+    from src.visualizations import (
+        player_radar_chart,
+        player_comparison_chart,
+        compare_teams,
+    )
+    from src.trade_analyzer import (
+        simulate_trade,
+        list_team_players,
+        get_all_players,
+        team_profile,
+    )
+    from src.free_agent_finder import find_free_agents, SALARY_AVAILABLE
+    from src.gm_assistant import ask_gm
+    from src.team_analyzer import df as _player_df
+except ImportError:
+    from player_finder import (
+        find_replacements,
+        get_player_names,
+        get_player_info,
+        get_player_stats,
+        generate_scouting_report,
+        explain_recommendation,
+    )
+    from team_analyzer import (
+        get_team_names,
+        get_team_players,
+        get_team_ratings,
+        get_team_strengths,
+        get_team_needs,
+        get_team_rank,
+        get_player_ratings,
+        CATEGORIES,
+    )
+    from visualizations import (
+        player_radar_chart,
+        player_comparison_chart,
+        compare_teams,
+    )
+    from trade_analyzer import (
+        simulate_trade,
+        list_team_players,
+        get_all_players,
+        team_profile,
+    )
+    from free_agent_finder import find_free_agents, SALARY_AVAILABLE
+    from gm_assistant import ask_gm
+    from team_analyzer import df as _player_df
 
 st.set_page_config(page_title="ScoutIQ", page_icon="🏀", layout="wide")
 
