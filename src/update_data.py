@@ -112,21 +112,35 @@ def update_data(season="2025-26"):
     master_df["STL_PER_GAME"] = master_df["STL"] / master_df["GP"]
     master_df["BLK_PER_GAME"] = master_df["BLK"] / master_df["GP"]
     master_df["TOV_PER_GAME"] = master_df["TOV"] / master_df["GP"]
+    master_df["DREB_PER_GAME"] = master_df["DREB"] / master_df["GP"]
 
     # ----------------------------------
     # ScoutIQ Ratings
     # ----------------------------------
 
+    # Scoring: PPG adjusted by True Shooting efficiency (same logic as
+    # team_analyzer.py) so empty volume no longer outrates efficient scoring.
+    shot_poss = (master_df["FGA"] + 0.44 * master_df["FTA"]).clip(lower=1)
+    ts = master_df["PTS"] / (2 * shot_poss)
+    league_ts = master_df["PTS"].sum() / (2 * shot_poss.sum())
     master_df["SCORING_SCORE"] = percentile_rating(
-        master_df["PTS_PER_GAME"]
+        master_df["PTS_PER_GAME"] * (ts / league_ts).clip(0.75, 1.25)
     )
 
+    # Shooting: shrink percentages toward league average by attempts, then
+    # blend accuracy with three-point volume (mirrors team_analyzer.py).
+    lg3 = master_df["FG3M"].sum() / max(master_df["FG3A"].sum(), 1)
+    lgft = master_df["FTM"].sum() / max(master_df["FTA"].sum(), 1)
+    shrunk3 = (master_df["FG3M"] + 75 * lg3) / (master_df["FG3A"] + 75)
+    shrunkft = (master_df["FTM"] + 30 * lgft) / (master_df["FTA"] + 30)
+    fg3m_pg = master_df["FG3M"] / master_df["GP"]
+
+    def z(s):
+        sd = s.std()
+        return (s - s.mean()) / sd if sd else s * 0.0
+
     master_df["SHOOTING_SCORE"] = percentile_rating(
-        (
-            master_df["FG3_PCT"] * 0.5 +
-            master_df["FG_PCT"] * 0.3 +
-            master_df["FT_PCT"] * 0.2
-        )
+        0.45 * z(shrunk3) + 0.35 * z(fg3m_pg) + 0.20 * z(shrunkft)
     )
 
     playmaking_metric = (
@@ -142,10 +156,13 @@ def update_data(season="2025-26"):
         master_df["REB_PER_GAME"]
     )
 
+    # BUG FIX: this previously used season-TOTAL DREB alongside per-game
+    # STL/BLK, so the metric was ~90% "how many games did you play". A
+    # passive rebounder with 70 GP outrated an elite defender with 30 GP.
     defense_metric = (
         master_df["STL_PER_GAME"] * 0.45 +
         master_df["BLK_PER_GAME"] * 0.35 +
-        master_df["DREB"] * 0.20
+        master_df["DREB_PER_GAME"] * 0.20
     )
 
     master_df["DEFENSE_SCORE"] = percentile_rating(

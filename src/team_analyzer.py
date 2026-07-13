@@ -28,8 +28,52 @@ for _t, _n in [
 
 df["MIN_PER_GAME"] = df["MIN"] / df["GP"]
 
-df["SCORING_RAW"] = df["PTS_PER_GAME"]
-df["SHOOTING_RAW"] = 0.5 * df["FG3_PCT"] + 0.3 * df["FG_PCT"] + 0.2 * df["FT_PCT"]
+
+def _z(series):
+    """Z-score a column so differently-scaled stats can be blended fairly."""
+    s = pd.to_numeric(series, errors="coerce")
+    sd = s.std()
+    if not sd or pd.isna(sd):
+        return s * 0.0
+    return (s - s.mean()) / sd
+
+
+# Volume columns needed by the efficiency-aware formulas below. Older CSV
+# exports may lack them; if so we fall back to the previous simple formulas.
+_HAS_VOLUME = all(c in df.columns for c in ["FG3M", "FG3A", "FTM", "FTA", "FGA"])
+
+# --- Scoring: points per game, adjusted by True Shooting efficiency --------
+# Raw PPG rewards empty volume: a 22 PPG / 48 TS% chucker outrated a
+# 19.5 PPG / 63 TS% efficient scorer. TS% (points per shooting possession,
+# counting 3s and free throws) now scales PPG up or down by up to 25%.
+if _HAS_VOLUME:
+    _tsa = (df["FGA"] + 0.44 * df["FTA"]).clip(lower=1)
+    df["TS_PCT_CALC"] = df["PTS"] / (2 * _tsa)
+    _lg_ts = float(df["PTS"].sum() / (2 * _tsa.sum()))
+    # Clip so tiny-sample outliers can't swing the multiplier absurdly.
+    _eff = (df["TS_PCT_CALC"] / _lg_ts).clip(0.75, 1.25)
+    df["SCORING_RAW"] = df["PTS_PER_GAME"] * _eff
+else:
+    df["SCORING_RAW"] = df["PTS_PER_GAME"]
+
+# --- Shooting: accuracy AND volume, with small-sample shrinkage ------------
+# The old 0.5*3P% + 0.3*FG% + 0.2*FT% let a 0.3-attempt/55% big man outrate
+# a 9-attempt/39% sniper. Fix: shrink percentages toward the league average
+# based on attempts (empirical-Bayes: 3P% gets +75 phantom league-average
+# attempts, FT% gets +30), then blend shrunk 3P% (accuracy), made threes per
+# game (volume/gravity), and shrunk FT% as z-scores so units are comparable.
+if _HAS_VOLUME:
+    _lg3 = df["FG3M"].sum() / max(df["FG3A"].sum(), 1)
+    _lgft = df["FTM"].sum() / max(df["FTA"].sum(), 1)
+    _shrunk3 = (df["FG3M"] + 75 * _lg3) / (df["FG3A"] + 75)
+    _shrunkft = (df["FTM"] + 30 * _lgft) / (df["FTA"] + 30)
+    _fg3m_pg = df["FG3M"] / df["GP"]
+    df["SHOOTING_RAW"] = (
+        0.45 * _z(_shrunk3) + 0.35 * _z(_fg3m_pg) + 0.20 * _z(_shrunkft)
+    )
+else:
+    df["SHOOTING_RAW"] = 0.5 * df["FG3_PCT"] + 0.3 * df["FG_PCT"] + 0.2 * df["FT_PCT"]
+
 df["PLAYMAKING_RAW"] = df["AST_PER_GAME"] - 0.3 * df["TOV_PER_GAME"]
 df["REBOUNDING_RAW"] = df["REB_PER_GAME"]
 df["DEFENSE_RAW"] = (
